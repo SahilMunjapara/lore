@@ -1,0 +1,22 @@
+[project]
+name = "lore"
+version = "0.1.0"
+description = "A company brain on FalkorDB: who knows what, why it was decided, and what knowledge is at risk."
+requires-python = ">=3.10"
+dependencies = ["falkordb>=1.8", "python-dotenv>=1.0", "rich>=13", "anthropic>=1.14", "fastapi>=0.110", "uvicorn>=0.29", "mcp>=2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+lore = "lore.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["lore*"]
+
+[tool.setuptools.package-data]
+lore = ["static/*"]

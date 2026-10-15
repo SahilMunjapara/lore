@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lore — Company Brain</title>
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e4e2dc;
+    --accent: #4b3fd8; --accent-soft: #ecebff; --warn: #a15c00; --warn-soft: #fff3df; --ok: #1b7a43; --ok-soft: #e4f6eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #131316; --panel: #1c1c21; --ink: #ececf0; --muted: #9a9aa3; --line: #2c2c33;
+      --accent: #9d95ff; --accent-soft: #26244a; --warn: #f2b45a; --warn-soft: #3a2a12; --ok: #6fd69a; --ok-soft: #173325; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 16px 60px; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+  .tag { color: var(--muted); }
+  .stats { color: var(--muted); font-size: 13px; margin: 6px 0 20px; }
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; min-width: 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); font-size: 16px; }
+  input[type=text]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  button { padding: 0 20px; border-radius: 12px; border: 0; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 24px; }
+  .chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    font-size: 13px; cursor: pointer; font-weight: 400; }
+  .chip:hover { border-color: var(--accent); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+  .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  #answer { overflow-wrap: anywhere; }
+  #answer code { background: var(--accent-soft); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+  #answer ul { padding-left: 20px; }
+  .badge { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; margin: 0 6px 10px 0; }
+  .b-new { background: var(--accent-soft); color: var(--accent); }
+  .b-recalled { background: var(--ok-soft); color: var(--ok); }
+  .b-refreshed { background: var(--warn-soft); color: var(--warn); }
+  .trace { list-style: none; margin: 12px 0 0; padding: 0; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+  .trace li { padding: 4px 0; border-top: 1px dashed var(--line); overflow-wrap: anywhere; }
+  .trace b { color: var(--accent); font-weight: 600; }
+  #graph { height: 520px; border-radius: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--c); }
+  .empty { color: var(--muted); }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Lore</h1>
+    <span class="tag">the company brain that knows who knows what</span>
+  </header>
+  <div class="stats" id="stats">Connecting to the graph…</div>
+
+  <form id="ask">
+    <input type="text" id="q" placeholder="Ask anything about how the company works…" autocomplete="off">
+    <button id="go">Ask</button>
+  </form>
+  <div class="chips" id="chips"></div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Answer</h2>
+      <div id="meta"></div>
+      <div id="answer" class="empty">Pick an example above or ask your own question.</div>
+      <ul class="trace" id="trace"></ul>
+    </section>
+    <section class="panel">
+      <h2>How I know — the graph path</h2>
+      <div id="graph"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+const COLORS = { Person: "#e8743b", Team: "#c94f7c", Module: "#4b3fd8", File: "#7a7a85", Doc: "#2a9d8f",
+  Decision: "#e9b824", Ticket: "#3a86ff", Commit: "#9aa0a6" };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let network;
+
+$("legend").innerHTML = Object.entries(COLORS).map(([k, c]) => `<span style="--c:${c}">${k}</span>`).join("");
+
+async function loadOverview() {
+  try {
+    const o = await (await fetch("/api/overview")).json();
+    const counts = o.counts.filter((c) => c.label !== "Answer").map((c) => `${c.n.toLocaleString()} ${c.label}`).join(" · ");
+    $("stats").textContent = `${counts} — planner: ${o.llm ? "Claude" : "built-in (set ANTHROPIC_API_KEY for Claude)"}`;
+    const top = o.people[0] ? o.people[0].name : "our top contributor";
+    const examples = [
+      `What happens if ${top} leaves?`,
+      "Who knows about bulk insert?",
+      "Which docs are out of date?",
+      "Who should fix: crash when deleting a node with an index",
+      "Why was the async client added?",
+      "Onboard me to the query planner",
+    ];
+    $("chips").innerHTML = examples.map((e) => `<button class="chip" type="button">${esc(e)}</button>`).join("");
+    document.querySelectorAll(".chip").forEach((b) => b.onclick = () => { $("q").value = b.textContent; ask(); });
+  } catch (e) {
+    $("stats").textContent = "Can't reach the graph. Is FalkorDB running and has `lore ingest` been run?";
+  }
+}
+
+function drawGraph(g) {
+  const nodes = g.nodes.map((n) => ({ id: n.id, label: n.name.length > 34 ? n.name.slice(0, 33) + "…" : n.name,
+    title: `${n.label}: ${n.name}`, color: COLORS[n.label] || "#888", shape: "dot",
+    size: n.label === "Person" ? 16 : n.label === "Module" ? 14 : 9 }));
+  const edges = g.edges.map((e) => ({ from: e.source, to: e.target, label: e.type, arrows: "to" }));
+  const ink = getComputedStyle(document.body).getPropertyValue("--muted");
+  const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+  const options = {
+    nodes: { font: { color: getComputedStyle(document.body).getPropertyValue("--ink"), size: 12 } },
+    edges: { color: { color: ink, opacity: 0.45 }, font: { size: 9, color: ink, strokeWidth: 0 }, smooth: { type: "continuous" } },
+    physics: { solver: "forceAtlas2Based", forceAtlas2Based: { gravitationalConstant: -60, springLength: 110 }, stabilization: { iterations: 200 } },
+    interaction: { hover: true },
+  };
+  if (network) network.destroy();
+  network = new vis.Network($("graph"), data, options);
+}
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (!question) return;
+  $("go").disabled = true;
+  $("answer").className = "";
+  $("answer").innerHTML = `<span class="spinner"></span>Walking the graph…`;
+  $("meta").innerHTML = ""; $("trace").innerHTML = "";
+  try {
+    const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }) });
+    if (!res.ok) throw new Error(await res.text());
+    const r = await res.json();
+    const m = r.memory;
+    const label = { new: "new question — saved to memory", recalled: `remembered from ${m.asked_before} · still current`,
+      refreshed: `asked on ${m.asked_before}, but the evidence changed — re-answered` }[m.status];
+    let meta = `<span class="badge b-${m.status}">${esc(label)}</span><span class="badge b-new">planner: ${esc(r.mode)}</span>`;
+    (m.changed_since || []).forEach((c) => meta += `<div class="badge b-refreshed">changed since: ${esc(c.what)} (${c.changes} commits)</div>`);
+    $("meta").innerHTML = meta;
+    $("answer").innerHTML = DOMPurify.sanitize(marked.parse(r.answer));
+    $("trace").innerHTML = r.trace.map((t) => `<li><b>${esc(t.tool)}</b>(${esc(JSON.stringify(t.input))})</li>`).join("");
+    drawGraph(r.graph);
+  } catch (e) {
+    $("answer").textContent = "Something went wrong: " + e.message;
+  } finally {
+    $("go").disabled = false;
+  }
+}
+
+$("ask").onsubmit = (e) => { e.preventDefault(); ask(); };
+loadOverview();
+</script>
+</body>
+</html>
